@@ -106,10 +106,21 @@ public abstract class DataTool {
 
         RuntimeExceptionDao<T, ?> dao = ormHelper.getRuntimeExceptionDao((Class<T>)item.getClass());
 
+        DependentDatabaseObject dobj = null;
+        if (item instanceof DependentDatabaseObject) {
+            dobj = (DependentDatabaseObject) item;
+            dobj.beforeDBWrite(this);
+        }
+
 
         Dao.CreateOrUpdateStatus status = dao.createOrUpdate(item);
-        if (item instanceof DependentDatabaseObject) {
-            ((DependentDatabaseObject) item).prepareForDatabase(this, status.isUpdated());
+        if (null != dobj) {
+            if (status.isUpdated()) {
+                dobj.afterUpdated(this);
+            } else {
+                dobj.afterCreated(this);
+            }
+            dobj.afterWriteCommon(this);
         }
         onItemUpdated(status.isUpdated(), item);
         return status;
@@ -120,10 +131,21 @@ public abstract class DataTool {
 
         for (T item : items) {
 
+            DependentDatabaseObject dobj = null;
+            if (item instanceof DependentDatabaseObject) {
+                dobj = (DependentDatabaseObject) item;
+                dobj.beforeDBWrite(this);
+            }
+
             Dao.CreateOrUpdateStatus status = dao.createOrUpdate(item);
 
-            if (item instanceof DependentDatabaseObject) {
-                ((DependentDatabaseObject) item).prepareForDatabase(this, status.isUpdated());
+            if (null != dobj) {
+                if (status.isUpdated()) {
+                    dobj.afterUpdated(this);
+                } else {
+                    dobj.afterCreated(this);
+                }
+                dobj.afterWriteCommon(this);
             }
 
             onItemUpdated(status.isUpdated(), item);
@@ -145,11 +167,18 @@ public abstract class DataTool {
 
         RuntimeExceptionDao<T, ?> dao = ormHelper.getRuntimeExceptionDao((Class<T>)item.getClass());
 
+        DependentDatabaseObject dobj = null;
+
         if (item instanceof DependentDatabaseObject) {
-            ((DependentDatabaseObject) item).prepareForDatabase(this, true);
+            dobj = (DependentDatabaseObject)item;
+            dobj.beforeDBWrite(this);
         }
 
         dao.update(item);
+        if (null != dobj) {
+            dobj.afterUpdated(this);
+            dobj.afterWriteCommon(this);
+        }
 
         onItemUpdated(true, item);
     }

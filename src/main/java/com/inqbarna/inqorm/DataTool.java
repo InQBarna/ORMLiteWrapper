@@ -12,7 +12,10 @@ import java.util.List;
 /**
  * Created by David on 15/09/14.
  */
-public abstract class DataTool {
+public abstract class DataTool implements DataAccessor {
+
+    public static final int FULL_RECURSIVE = -1;
+    public static final int NO_RECURSIVE = 0;
 
     protected OrmLiteSqliteOpenHelper ormHelper;
 
@@ -53,7 +56,12 @@ public abstract class DataTool {
         this.ormHelper = helper;
     }
 
+    DataTool() {
+        // constructor needed for RecursiveDataTool
+    }
 
+
+    @Override
     public <T> T findItem(Finder<T> finder) {
         Class<T> clazz = finder.getReturnType();
 
@@ -70,31 +78,38 @@ public abstract class DataTool {
         return retVal;
     }
 
+    @Override
     public <T> List<T> findMany(Finder<T> finder, List<OrderInstrucction> ordering) {
+        return findMany(finder, ordering, FULL_RECURSIVE);
+    }
+
+    public <T> List<T> findMany(Finder<T> finder, List<OrderInstrucction> ordering, int recursionLevel) {
         Class<T> clazz = finder.getReturnType();
         PreparedQuery<T> query = finder.getQuery(ormHelper, ordering);
         List<T> items = ormHelper.getRuntimeExceptionDao(clazz).query(query);
 
-        for (T item : items) {
-            if (item instanceof DependentDatabaseObject) {
-                ((DependentDatabaseObject) item).fillGapsFromDatabase(this);
+        if (recursionLevel != NO_RECURSIVE) {
+            for (T item : items) {
+                if (item instanceof DependentDatabaseObject) {
+                    ((DependentDatabaseObject) item).fillGapsFromDatabase(RecursiveDataTool.wrap(this, recursionLevel));
+                }
             }
         }
         return items;
     }
 
     public <T> List<T> findManyNoRecursive(Finder<T> finder, List<OrderInstrucction> ordering) {
-        Class<T> clazz = finder.getReturnType();
-        PreparedQuery<T> query = finder.getQuery(ormHelper, ordering);
-        return ormHelper.getRuntimeExceptionDao(clazz).query(query);
+        return findMany(finder, ordering, NO_RECURSIVE);
     }
 
+    @Override
     public <T> long getCount(Finder<T> finder) {
         Class<T> clazz = finder.getReturnType();
         PreparedQuery<T> query = finder.getQuery(ormHelper, null);
         return ormHelper.getRuntimeExceptionDao(clazz).countOf(query);
     }
 
+    @Override
     public <T> void deleteItems(Deleter<T> deleter) {
         Class<T> clazz = deleter.getItemType();
         PreparedDelete<T> delete = deleter.getDelete(ormHelper);
@@ -102,6 +117,7 @@ public abstract class DataTool {
         dao.delete(delete);
     }
 
+    @Override
     public <T> Dao.CreateOrUpdateStatus createOrUpdate(T item) {
 
         RuntimeExceptionDao<T, ?> dao = ormHelper.getRuntimeExceptionDao((Class<T>)item.getClass());
@@ -126,6 +142,7 @@ public abstract class DataTool {
         return status;
     }
 
+    @Override
     public <T> void createOrUpdateMany(Class<T> clazz, Collection<T> items) {
         RuntimeExceptionDao<T, ?> dao = ormHelper.getRuntimeExceptionDao(clazz);
 
@@ -155,6 +172,7 @@ public abstract class DataTool {
 
     protected abstract <T> void onItemUpdated(boolean updated, T item);
 
+    @Override
     public <T> void refreshData(T item) {
         ormHelper.getRuntimeExceptionDao((Class<T>)item.getClass()).refresh(item);
 
@@ -163,6 +181,7 @@ public abstract class DataTool {
         }
     }
 
+    @Override
     public <T> void update(T item) {
 
         RuntimeExceptionDao<T, ?> dao = ormHelper.getRuntimeExceptionDao((Class<T>)item.getClass());

@@ -65,6 +65,11 @@ class RecursiveDataTool implements DataAccessor {
     }
 
     @Override
+    public <T> void refreshAll(Collection<T> items) {
+        wrapped.refreshAll(items);
+    }
+
+    @Override
     public <T> void update(T item) {
         wrapped.update(item);
     }

@@ -21,7 +21,10 @@ public interface DataAccessor {
 
     <T> void createOrUpdateMany(Class<T> clazz, Collection<T> items);
 
+    /** For now refresh or refresh All are fully recursive by default. */
     <T> void refreshData(T item);
+
+    <T> void refreshAll(Collection<T> items);
 
     <T> void update(T item);
 }

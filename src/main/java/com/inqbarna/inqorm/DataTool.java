@@ -182,6 +182,22 @@ public abstract class DataTool implements DataAccessor {
     }
 
     @Override
+    public <T> void refreshAll(Collection<T> items) {
+        RuntimeExceptionDao<T, ?> dao = null;
+        for (T item : items) {
+            if (null == dao) {
+               dao = ormHelper.getRuntimeExceptionDao((Class<T>) item.getClass());
+            }
+
+            dao.refresh(item);
+
+            if (item instanceof DependentDatabaseObject) {
+                ((DependentDatabaseObject)item).fillGapsFromDatabase(this);
+            }
+        }
+    }
+
+    @Override
     public <T> void update(T item) {
 
         RuntimeExceptionDao<T, ?> dao = ormHelper.getRuntimeExceptionDao((Class<T>)item.getClass());

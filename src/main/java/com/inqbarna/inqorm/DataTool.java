@@ -5,6 +5,7 @@ import com.j256.ormlite.dao.Dao;
 import com.j256.ormlite.dao.RuntimeExceptionDao;
 import com.j256.ormlite.stmt.PreparedDelete;
 import com.j256.ormlite.stmt.PreparedQuery;
+import com.j256.ormlite.stmt.PreparedUpdate;
 
 import java.util.Collection;
 import java.util.List;
@@ -48,6 +49,11 @@ public abstract class DataTool implements DataAccessor {
     public interface Deleter<T> {
         public PreparedDelete<T> getDelete(OrmLiteSqliteOpenHelper helper);
 
+        public Class<T> getItemType();
+    }
+
+    public interface Updater<T> {
+        public PreparedUpdate<T> getUpdate(OrmLiteSqliteOpenHelper helper);
         public Class<T> getItemType();
     }
 
@@ -168,6 +174,11 @@ public abstract class DataTool implements DataAccessor {
             onItemUpdated(status.isUpdated(), item);
 
         }
+    }
+
+    public <T> void bulkUpdate(Updater<T> updater) {
+        RuntimeExceptionDao<T, ?> dao = ormHelper.getRuntimeExceptionDao(updater.getItemType());
+        dao.update(updater.getUpdate(ormHelper));
     }
 
     protected abstract <T> void onItemUpdated(boolean updated, T item);

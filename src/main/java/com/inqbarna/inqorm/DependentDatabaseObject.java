@@ -1,5 +1,9 @@
 package com.inqbarna.inqorm;
 
+import com.j256.ormlite.stmt.PreparedDelete;
+
+import java.util.List;
+
 /**
  * Created by David on 22/09/14.
  */

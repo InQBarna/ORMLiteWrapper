@@ -52,6 +52,12 @@ public abstract class DataTool implements DataAccessor {
         public Class<T> getItemType();
     }
 
+    public interface DeleterWithDependency<T> extends Deleter<T> {
+
+        public List<Deleter<?>> getDependentDeletes();
+
+    }
+
     public interface Updater<T> {
         public PreparedUpdate<T> getUpdate(OrmLiteSqliteOpenHelper helper);
         public Class<T> getItemType();
@@ -69,6 +75,10 @@ public abstract class DataTool implements DataAccessor {
 
     @Override
     public <T> T findItem(Finder<T> finder) {
+        return findItem(finder, FULL_RECURSIVE);
+    }
+
+    public <T> T findItem(Finder<T> finder, int recursionLevel) {
         Class<T> clazz = finder.getReturnType();
 
         if (finder.isMultiRowQuery()) {
@@ -78,8 +88,10 @@ public abstract class DataTool implements DataAccessor {
         PreparedQuery<T> query = finder.getQuery(ormHelper, null);
         T retVal = ormHelper.getRuntimeExceptionDao(clazz).queryForFirst(query);
 
-        if (retVal instanceof DependentDatabaseObject) {
-            ((DependentDatabaseObject) retVal).fillGapsFromDatabase(this);
+        if (recursionLevel != NO_RECURSIVE) {
+            if (retVal instanceof DependentDatabaseObject) {
+                ((DependentDatabaseObject) retVal).fillGapsFromDatabase(RecursiveDataTool.wrap(this, recursionLevel));
+            }
         }
         return retVal;
     }
@@ -117,6 +129,17 @@ public abstract class DataTool implements DataAccessor {
 
     @Override
     public <T> void deleteItems(Deleter<T> deleter) {
+
+        if (DeleterWithDependency.class.isAssignableFrom(deleter.getClass())) {
+            DeleterWithDependency<T> dependDeleter = (DeleterWithDependency<T>) deleter;
+            List<Deleter<?>> innerDeleters = dependDeleter.getDependentDeletes();
+            if (null != innerDeleters) {
+                for (Deleter<?> innerD : innerDeleters) {
+                    deleteItems(innerD);
+                }
+            }
+        }
+
         Class<T> clazz = deleter.getItemType();
         PreparedDelete<T> delete = deleter.getDelete(ormHelper);
         RuntimeExceptionDao<T, ?> dao = ormHelper.getRuntimeExceptionDao(clazz);
@@ -197,7 +220,7 @@ public abstract class DataTool implements DataAccessor {
         RuntimeExceptionDao<T, ?> dao = null;
         for (T item : items) {
             if (null == dao) {
-               dao = ormHelper.getRuntimeExceptionDao((Class<T>) item.getClass());
+               dao = ormHelper.getRuntimeExceptionDao((Class<T>)item.getClass());
             }
 
             dao.refresh(item);

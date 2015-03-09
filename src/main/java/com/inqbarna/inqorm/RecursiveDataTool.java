@@ -36,7 +36,7 @@ class RecursiveDataTool implements DataAccessor {
 
     @Override
     public <T> T findItem(DataTool.Finder<T> finder) {
-        return wrapped.findItem(finder);
+        return wrapped.findItem(finder, currentRecursiveLevel);
     }
 
     @Override
@@ -73,4 +73,5 @@ class RecursiveDataTool implements DataAccessor {
     public <T> void update(T item) {
         wrapped.update(item);
     }
+
 }

@@ -6,6 +6,7 @@ import com.j256.ormlite.dao.RuntimeExceptionDao;
 import com.j256.ormlite.stmt.PreparedDelete;
 import com.j256.ormlite.stmt.PreparedQuery;
 import com.j256.ormlite.stmt.PreparedUpdate;
+import com.j256.ormlite.support.ConnectionSource;
 
 import java.util.Collection;
 import java.util.List;
@@ -66,6 +67,14 @@ public abstract class DataTool implements DataAccessor {
 
     public DataTool(OrmLiteSqliteOpenHelper helper) {
         this.ormHelper = helper;
+    }
+
+    ConnectionSource getConnectionSource() {
+        if (null != ormHelper) {
+            return ormHelper.getConnectionSource();
+        } else {
+            return null;
+        }
     }
 
     DataTool() {
@@ -229,6 +238,11 @@ public abstract class DataTool implements DataAccessor {
                 ((DependentDatabaseObject)item).fillGapsFromDatabase(this);
             }
         }
+    }
+
+    @Override
+    public Transaction beginTransaction() {
+        return new Transaction(this);
     }
 
     @Override

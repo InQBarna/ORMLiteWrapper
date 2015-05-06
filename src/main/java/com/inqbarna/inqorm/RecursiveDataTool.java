@@ -74,4 +74,8 @@ class RecursiveDataTool implements DataAccessor {
         wrapped.update(item);
     }
 
+    @Override
+    public Transaction beginTransaction() {
+        return wrapped.beginTransaction();
+    }
 }

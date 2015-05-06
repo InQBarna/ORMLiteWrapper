@@ -26,5 +26,7 @@ public interface DataAccessor {
 
     <T> void refreshAll(Collection<T> items);
 
+    Transaction beginTransaction();
+
     <T> void update(T item);
 }

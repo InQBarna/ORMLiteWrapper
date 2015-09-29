@@ -19,6 +19,8 @@ public interface DataAccessor {
 
     <T> Dao.CreateOrUpdateStatus createOrUpdate(T item);
 
+    <T> T createIfNotExists(T item);
+
     <T> void createOrUpdateMany(Class<T> clazz, Collection<T> items);
 
     /** For now refresh or refresh All are fully recursive by default. */

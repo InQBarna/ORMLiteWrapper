@@ -97,9 +97,10 @@ public abstract class DataTool implements DataAccessor {
         PreparedQuery<T> query = finder.getQuery(ormHelper, null);
         T retVal = ormHelper.getRuntimeExceptionDao(clazz).queryForFirst(query);
 
-        if (recursionLevel != NO_RECURSIVE) {
-            if (retVal instanceof DependentDatabaseObject) {
-                ((DependentDatabaseObject) retVal).fillGapsFromDatabase(RecursiveDataTool.wrap(this, recursionLevel));
+        if (recursionLevel != NO_RECURSIVE && null != retVal) {
+            DBHook<T> hook = (DBHook<T>) getHook(retVal.getClass());
+            if (null != hook) {
+                hook.fillGapsFromDatabase(RecursiveDataTool.wrap(this, recursionLevel), retVal);
             }
         }
         return retVal;
@@ -115,10 +116,11 @@ public abstract class DataTool implements DataAccessor {
         PreparedQuery<T> query = finder.getQuery(ormHelper, ordering);
         List<T> items = ormHelper.getRuntimeExceptionDao(clazz).query(query);
 
-        if (recursionLevel != NO_RECURSIVE) {
+        if (recursionLevel != NO_RECURSIVE && null != items) {
+            DBHook<T> hook = getHook(clazz);
             for (T item : items) {
-                if (item instanceof DependentDatabaseObject) {
-                    ((DependentDatabaseObject) item).fillGapsFromDatabase(RecursiveDataTool.wrap(this, recursionLevel));
+                if (null != hook) {
+                    hook.fillGapsFromDatabase(RecursiveDataTool.wrap(this, recursionLevel), item);
                 }
             }
         }
@@ -158,49 +160,54 @@ public abstract class DataTool implements DataAccessor {
     @Override
     public <T> Dao.CreateOrUpdateStatus createOrUpdate(T item) {
 
-        RuntimeExceptionDao<T, ?> dao = ormHelper.getRuntimeExceptionDao((Class<T>)item.getClass());
+        RuntimeExceptionDao<T, ?> dao = ormHelper.getRuntimeExceptionDao((Class<T>) item.getClass());
 
-        DependentDatabaseObject dobj = null;
-        if (item instanceof DependentDatabaseObject) {
-            dobj = (DependentDatabaseObject) item;
-            dobj.beforeDBWrite(this);
+        DBHook<T> hook = (DBHook<T>) getHook(item.getClass());
+        if (null != hook) {
+            hook.beforeDBWrite(this, item);
         }
 
 
         Dao.CreateOrUpdateStatus status = dao.createOrUpdate(item);
-        if (null != dobj) {
+        if (null != hook) {
             if (status.isUpdated()) {
-                dobj.afterUpdated(this);
+                hook.afterUpdated(this, item);
             } else {
-                dobj.afterCreated(this);
+                hook.afterCreated(this, item);
             }
-            dobj.afterWriteCommon(this);
+            hook.afterWriteCommon(this, item);
         }
         onItemUpdated(status.isUpdated(), item);
         return status;
     }
 
     @Override
+    public <T> T createIfNotExists(T item) {
+        RuntimeExceptionDao<T, ?> dao = ormHelper.getRuntimeExceptionDao((Class<T>)item.getClass());
+        T result = dao.createIfNotExists(item);
+        return result;
+    }
+
+    @Override
     public <T> void createOrUpdateMany(Class<T> clazz, Collection<T> items) {
         RuntimeExceptionDao<T, ?> dao = ormHelper.getRuntimeExceptionDao(clazz);
 
+        DBHook<T> hook = getHook(clazz);
         for (T item : items) {
 
-            DependentDatabaseObject dobj = null;
-            if (item instanceof DependentDatabaseObject) {
-                dobj = (DependentDatabaseObject) item;
-                dobj.beforeDBWrite(this);
+            if (null != hook) {
+                hook.beforeDBWrite(this, item);
             }
 
             Dao.CreateOrUpdateStatus status = dao.createOrUpdate(item);
 
-            if (null != dobj) {
+            if (null != hook) {
                 if (status.isUpdated()) {
-                    dobj.afterUpdated(this);
+                    hook.afterUpdated(this, item);
                 } else {
-                    dobj.afterCreated(this);
+                    hook.afterCreated(this, item);
                 }
-                dobj.afterWriteCommon(this);
+                hook.afterWriteCommon(this, item);
             }
 
             onItemUpdated(status.isUpdated(), item);
@@ -219,23 +226,31 @@ public abstract class DataTool implements DataAccessor {
     public <T> void refreshData(T item) {
         ormHelper.getRuntimeExceptionDao((Class<T>)item.getClass()).refresh(item);
 
-        if (item instanceof DependentDatabaseObject) {
-            ((DependentDatabaseObject)item).fillGapsFromDatabase(this);
+        DBHook<T> hook = (DBHook<T>) getHook(item.getClass());
+        if (null != hook) {
+            hook.fillGapsFromDatabase(this, item);
         }
     }
 
     @Override
     public <T> void refreshAll(Collection<T> items) {
         RuntimeExceptionDao<T, ?> dao = null;
+        DBHook<T> hook = null;
+        boolean hookChecked = false;
         for (T item : items) {
             if (null == dao) {
                dao = ormHelper.getRuntimeExceptionDao((Class<T>)item.getClass());
             }
 
+            if (!hookChecked) {
+                hookChecked = true;
+                hook = (DBHook<T>) getHook(item.getClass());
+            }
+
             dao.refresh(item);
 
-            if (item instanceof DependentDatabaseObject) {
-                ((DependentDatabaseObject)item).fillGapsFromDatabase(this);
+            if (null != hook) {
+                hook.fillGapsFromDatabase(this, item);
             }
         }
     }
@@ -250,20 +265,23 @@ public abstract class DataTool implements DataAccessor {
 
         RuntimeExceptionDao<T, ?> dao = ormHelper.getRuntimeExceptionDao((Class<T>)item.getClass());
 
-        DependentDatabaseObject dobj = null;
 
-        if (item instanceof DependentDatabaseObject) {
-            dobj = (DependentDatabaseObject)item;
-            dobj.beforeDBWrite(this);
+        DBHook<T> hook = (DBHook<T>) getHook(item.getClass());
+        if (null != hook) {
+            hook.beforeDBWrite(this, item);
         }
 
         dao.update(item);
-        if (null != dobj) {
-            dobj.afterUpdated(this);
-            dobj.afterWriteCommon(this);
+        if (null != hook) {
+            hook.afterUpdated(this, item);
+            hook.afterWriteCommon(this, item);
         }
 
         onItemUpdated(true, item);
+    }
+
+    protected <T> DBHook<T> getHook(Class<T> clazz) {
+        return null;
     }
 
 }

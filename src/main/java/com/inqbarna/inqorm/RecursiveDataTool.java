@@ -55,6 +55,11 @@ class RecursiveDataTool implements DataAccessor {
     }
 
     @Override
+    public <T> T createIfNotExists(T item) {
+        return wrapped.createIfNotExists(item);
+    }
+
+    @Override
     public <T> void createOrUpdateMany(Class<T> clazz, Collection<T> items) {
         wrapped.createOrUpdateMany(clazz, items);
     }

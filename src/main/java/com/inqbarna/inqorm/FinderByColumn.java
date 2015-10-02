@@ -15,10 +15,16 @@ public abstract class FinderByColumn<T, ID> implements DataTool.Finder<T> {
 
     private final Class<T> clazz;
     private final ID id;
+    private boolean multiRow = false;
 
     public FinderByColumn(Class<T> clazz, ID id) {
         this.clazz = clazz;
         this.id = id;
+    }
+
+    public DataTool.Finder<T> multirow() {
+        multiRow = true;
+        return this;
     }
 
     @Override
@@ -38,7 +44,7 @@ public abstract class FinderByColumn<T, ID> implements DataTool.Finder<T> {
 
     @Override
     public boolean isMultiRowQuery() {
-        return false;
+        return multiRow;
     }
 
     @Override

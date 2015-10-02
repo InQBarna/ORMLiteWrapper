@@ -5,10 +5,10 @@ package com.inqbarna.inqorm;
  */
 public interface DBHook<T> {
 
-    void beforeDBWrite(DataAccessor dataTool, T obj);
-    void afterCreated(DataAccessor dataTool, T obj);
-    void afterUpdated(DataAccessor dataTool, T obj);
-    void afterWriteCommon(DataAccessor dataTool, T obj);
+    void beforeDBWrite(DataAccessor dataTool, T obj, Object hookOptions);
+    void afterCreated(DataAccessor dataTool, T obj, Object hookOptions);
+    void afterUpdated(DataAccessor dataTool, T obj, Object hookOptions);
+    void afterWriteCommon(DataAccessor dataTool, T obj, Object hookOptions);
 
-    void fillGapsFromDatabase(DataAccessor dataTool, T obj);
+    void fillGapsFromDatabase(DataAccessor dataTool, T obj, Object hookOptions);
 }

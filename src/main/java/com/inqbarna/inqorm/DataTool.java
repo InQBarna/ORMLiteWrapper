@@ -10,6 +10,7 @@ import com.j256.ormlite.support.ConnectionSource;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.Callable;
 
 /**
  * Created by David on 15/09/14.
@@ -83,8 +84,35 @@ public abstract class DataTool implements DataAccessor {
 
 
     @Override
+    public <T, ID> T getById(Class<T> clazz, ID id) {
+        return getById(clazz, id, NO_RECURSIVE);
+    }
+
+    public <T, ID> T getById(Class<T> clazz, ID id, int recursionLevel) {
+        RuntimeExceptionDao<T, ID> dao = ormHelper.getRuntimeExceptionDao(clazz);
+        T item = dao.queryForId(id);
+        if (recursionLevel != NO_RECURSIVE && null != item) {
+            DBHook<T> hook = getHook(clazz);
+            if (null != hook) {
+                hook.fillGapsFromDatabase(RecursiveDataTool.wrap(this, recursionLevel), item, getCurrentHookOptions());
+            }
+        }
+        return item;
+    }
+
+    @Override
+    public <T, ID> ID getObjectID(T item) {
+        RuntimeExceptionDao<T, ?> dao = ormHelper.getRuntimeExceptionDao((Class<T>) item.getClass());
+        return (ID) idOfItem(dao, item);
+    }
+
+    private <T, ID> ID idOfItem(RuntimeExceptionDao<T, ID> dao, T item) {
+        return dao.extractId(item);
+    }
+
+    @Override
     public <T> T findItem(Finder<T> finder) {
-        return findItem(finder, FULL_RECURSIVE);
+        return findItem(finder, NO_RECURSIVE);
     }
 
     public <T> T findItem(Finder<T> finder, int recursionLevel) {
@@ -97,9 +125,10 @@ public abstract class DataTool implements DataAccessor {
         PreparedQuery<T> query = finder.getQuery(ormHelper, null);
         T retVal = ormHelper.getRuntimeExceptionDao(clazz).queryForFirst(query);
 
-        if (recursionLevel != NO_RECURSIVE) {
-            if (retVal instanceof DependentDatabaseObject) {
-                ((DependentDatabaseObject) retVal).fillGapsFromDatabase(RecursiveDataTool.wrap(this, recursionLevel));
+        if (recursionLevel != NO_RECURSIVE && null != retVal) {
+            DBHook<T> hook = (DBHook<T>) getHook(retVal.getClass());
+            if (null != hook) {
+                hook.fillGapsFromDatabase(RecursiveDataTool.wrap(this, recursionLevel), retVal, getCurrentHookOptions());
             }
         }
         return retVal;
@@ -107,7 +136,7 @@ public abstract class DataTool implements DataAccessor {
 
     @Override
     public <T> List<T> findMany(Finder<T> finder, List<OrderInstrucction> ordering) {
-        return findMany(finder, ordering, FULL_RECURSIVE);
+        return findMany(finder, ordering, NO_RECURSIVE);
     }
 
     public <T> List<T> findMany(Finder<T> finder, List<OrderInstrucction> ordering, int recursionLevel) {
@@ -115,10 +144,11 @@ public abstract class DataTool implements DataAccessor {
         PreparedQuery<T> query = finder.getQuery(ormHelper, ordering);
         List<T> items = ormHelper.getRuntimeExceptionDao(clazz).query(query);
 
-        if (recursionLevel != NO_RECURSIVE) {
+        if (recursionLevel != NO_RECURSIVE && null != items) {
+            DBHook<T> hook = getHook(clazz);
             for (T item : items) {
-                if (item instanceof DependentDatabaseObject) {
-                    ((DependentDatabaseObject) item).fillGapsFromDatabase(RecursiveDataTool.wrap(this, recursionLevel));
+                if (null != hook) {
+                    hook.fillGapsFromDatabase(RecursiveDataTool.wrap(this, recursionLevel), item, getCurrentHookOptions());
                 }
             }
         }
@@ -155,57 +185,80 @@ public abstract class DataTool implements DataAccessor {
         dao.delete(delete);
     }
 
+    public DataTool withHookOptions(Object hookOptions) {
+        return new OptionedDataTool(this, hookOptions);
+    }
+
     @Override
     public <T> Dao.CreateOrUpdateStatus createOrUpdate(T item) {
+        return createOrUpdate(item, 1);
+    }
 
-        RuntimeExceptionDao<T, ?> dao = ormHelper.getRuntimeExceptionDao((Class<T>)item.getClass());
+    public <T> Dao.CreateOrUpdateStatus createOrUpdate(T item, int recurionLevel) {
+        RuntimeExceptionDao<T, ?> dao = ormHelper.getRuntimeExceptionDao((Class<T>) item.getClass());
 
-        DependentDatabaseObject dobj = null;
-        if (item instanceof DependentDatabaseObject) {
-            dobj = (DependentDatabaseObject) item;
-            dobj.beforeDBWrite(this);
+        DBHook<T> hook = (DBHook<T>) getHook(item.getClass());
+        if (recurionLevel != NO_RECURSIVE && null != hook) {
+            hook.beforeDBWrite(RecursiveDataTool.wrap(this, recurionLevel), item, getCurrentHookOptions());
         }
 
 
         Dao.CreateOrUpdateStatus status = dao.createOrUpdate(item);
-        if (null != dobj) {
+        if (recurionLevel != NO_RECURSIVE && null != hook) {
             if (status.isUpdated()) {
-                dobj.afterUpdated(this);
+                hook.afterUpdated(RecursiveDataTool.wrap(this, recurionLevel), item, getCurrentHookOptions());
             } else {
-                dobj.afterCreated(this);
+                hook.afterCreated(RecursiveDataTool.wrap(this, recurionLevel), item, getCurrentHookOptions());
             }
-            dobj.afterWriteCommon(this);
+            hook.afterWriteCommon(RecursiveDataTool.wrap(this, recurionLevel), item, getCurrentHookOptions());
         }
         onItemUpdated(status.isUpdated(), item);
         return status;
     }
 
     @Override
-    public <T> void createOrUpdateMany(Class<T> clazz, Collection<T> items) {
-        RuntimeExceptionDao<T, ?> dao = ormHelper.getRuntimeExceptionDao(clazz);
+    public <T> T createIfNotExists(T item) {
+        RuntimeExceptionDao<T, ?> dao = ormHelper.getRuntimeExceptionDao((Class<T>) item.getClass());
+        T result = dao.createIfNotExists(item);
+        return result;
+    }
 
-        for (T item : items) {
+    @Override
+    public <T> void createOrUpdateMany(Class<T> clazz, final Collection<T> items) {
+        createOrUpdateMany(clazz, items, 1);
+    }
 
-            DependentDatabaseObject dobj = null;
-            if (item instanceof DependentDatabaseObject) {
-                dobj = (DependentDatabaseObject) item;
-                dobj.beforeDBWrite(this);
-            }
+    public <T> void createOrUpdateMany(Class<T> clazz, final Collection<T> items, final int recursionLevel) {
+        final RuntimeExceptionDao<T, ?> dao = ormHelper.getRuntimeExceptionDao(clazz);
 
-            Dao.CreateOrUpdateStatus status = dao.createOrUpdate(item);
+        final DBHook<T> hook = getHook(clazz);
+        dao.callBatchTasks(
+                new Callable<Void>() {
+                    @Override
+                    public Void call() throws Exception {
+                        for (T item : items) {
 
-            if (null != dobj) {
-                if (status.isUpdated()) {
-                    dobj.afterUpdated(this);
-                } else {
-                    dobj.afterCreated(this);
-                }
-                dobj.afterWriteCommon(this);
-            }
+                            if (recursionLevel != NO_RECURSIVE && null != hook) {
+                                hook.beforeDBWrite(RecursiveDataTool.wrap(DataTool.this, recursionLevel), item, getCurrentHookOptions());
+                            }
 
-            onItemUpdated(status.isUpdated(), item);
+                            Dao.CreateOrUpdateStatus status = dao.createOrUpdate(item);
 
-        }
+                            if (recursionLevel != NO_RECURSIVE && null != hook) {
+                                if (status.isUpdated()) {
+                                    hook.afterUpdated(RecursiveDataTool.wrap(DataTool.this, recursionLevel), item, getCurrentHookOptions());
+                                } else {
+                                    hook.afterCreated(RecursiveDataTool.wrap(DataTool.this, recursionLevel), item, getCurrentHookOptions());
+                                }
+                                hook.afterWriteCommon(RecursiveDataTool.wrap(DataTool.this, recursionLevel), item, getCurrentHookOptions());
+                            }
+
+                            onItemUpdated(status.isUpdated(), item);
+
+                        }
+                        return null;
+                    }
+                });
     }
 
     public <T> void bulkUpdate(Updater<T> updater) {
@@ -217,27 +270,56 @@ public abstract class DataTool implements DataAccessor {
 
     @Override
     public <T> void refreshData(T item) {
+        refreshData(item, NO_RECURSIVE);
+    }
+
+    public <T> void refreshData(T item, int recursionLevel) {
         ormHelper.getRuntimeExceptionDao((Class<T>)item.getClass()).refresh(item);
 
-        if (item instanceof DependentDatabaseObject) {
-            ((DependentDatabaseObject)item).fillGapsFromDatabase(this);
+        if (recursionLevel != NO_RECURSIVE) {
+            DBHook<T> hook = (DBHook<T>) getHook(item.getClass());
+            if (null != hook) {
+                hook.fillGapsFromDatabase(RecursiveDataTool.wrap(this, recursionLevel), item, getCurrentHookOptions());
+            }
         }
     }
 
     @Override
     public <T> void refreshAll(Collection<T> items) {
+        refreshAll(items, NO_RECURSIVE);
+    }
+
+    public <T> void refreshAll(Collection<T> items, int recursionLevel) {
         RuntimeExceptionDao<T, ?> dao = null;
+        DBHook<T> hook = null;
+        boolean hookChecked = false;
         for (T item : items) {
             if (null == dao) {
-               dao = ormHelper.getRuntimeExceptionDao((Class<T>)item.getClass());
+                dao = ormHelper.getRuntimeExceptionDao((Class<T>)item.getClass());
+            }
+
+            if (recursionLevel != NO_RECURSIVE && !hookChecked) {
+                hookChecked = true;
+                hook = (DBHook<T>) getHook(item.getClass());
             }
 
             dao.refresh(item);
 
-            if (item instanceof DependentDatabaseObject) {
-                ((DependentDatabaseObject)item).fillGapsFromDatabase(this);
+            if (null != hook) {
+                hook.fillGapsFromDatabase(RecursiveDataTool.wrap(this, recursionLevel), item, getCurrentHookOptions());
             }
         }
+    }
+
+    @Override
+    public <T> boolean exists(T item) {
+        RuntimeExceptionDao<T, ?> dao = ormHelper.getRuntimeExceptionDao((Class<T>) item.getClass());
+        return idChecker(dao, item);
+    }
+
+    private <T, ID> boolean idChecker(RuntimeExceptionDao<T, ID> dao, T item) {
+        ID id = dao.extractId(item);
+        return dao.idExists(id);
     }
 
     @Override
@@ -250,20 +332,27 @@ public abstract class DataTool implements DataAccessor {
 
         RuntimeExceptionDao<T, ?> dao = ormHelper.getRuntimeExceptionDao((Class<T>)item.getClass());
 
-        DependentDatabaseObject dobj = null;
 
-        if (item instanceof DependentDatabaseObject) {
-            dobj = (DependentDatabaseObject)item;
-            dobj.beforeDBWrite(this);
+        DBHook<T> hook = (DBHook<T>) getHook(item.getClass());
+        if (null != hook) {
+            hook.beforeDBWrite(this, item, getCurrentHookOptions());
         }
 
         dao.update(item);
-        if (null != dobj) {
-            dobj.afterUpdated(this);
-            dobj.afterWriteCommon(this);
+        if (null != hook) {
+            hook.afterUpdated(this, item, getCurrentHookOptions());
+            hook.afterWriteCommon(this, item, getCurrentHookOptions());
         }
 
         onItemUpdated(true, item);
+    }
+
+    protected Object getCurrentHookOptions() {
+        return null;
+    }
+
+    protected <T> DBHook<T> getHook(Class<T> clazz) {
+        return null;
     }
 
 }

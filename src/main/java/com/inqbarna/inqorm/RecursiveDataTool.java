@@ -35,6 +35,16 @@ class RecursiveDataTool implements DataAccessor {
     }
 
     @Override
+    public <T, ID> T getById(Class<T> clazz, ID id) {
+        return wrapped.getById(clazz, id, currentRecursiveLevel);
+    }
+
+    @Override
+    public <T, ID> ID getObjectID(T item) {
+        return wrapped.getObjectID(item);
+    }
+
+    @Override
     public <T> T findItem(DataTool.Finder<T> finder) {
         return wrapped.findItem(finder, currentRecursiveLevel);
     }
@@ -51,22 +61,32 @@ class RecursiveDataTool implements DataAccessor {
 
     @Override
     public <T> Dao.CreateOrUpdateStatus createOrUpdate(T item) {
-        return wrapped.createOrUpdate(item);
+        return wrapped.createOrUpdate(item, currentRecursiveLevel);
+    }
+
+    @Override
+    public <T> T createIfNotExists(T item) {
+        return wrapped.createIfNotExists(item);
     }
 
     @Override
     public <T> void createOrUpdateMany(Class<T> clazz, Collection<T> items) {
-        wrapped.createOrUpdateMany(clazz, items);
+        wrapped.createOrUpdateMany(clazz, items, currentRecursiveLevel);
     }
 
     @Override
     public <T> void refreshData(T item) {
-        wrapped.refreshData(item);
+        wrapped.refreshData(item, currentRecursiveLevel);
     }
 
     @Override
     public <T> void refreshAll(Collection<T> items) {
-        wrapped.refreshAll(items);
+        wrapped.refreshAll(items, currentRecursiveLevel);
+    }
+
+    @Override
+    public <T> boolean exists(T item) {
+        return wrapped.exists(item);
     }
 
     @Override

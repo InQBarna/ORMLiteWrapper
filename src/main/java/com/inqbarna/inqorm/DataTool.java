@@ -5,9 +5,11 @@ import com.j256.ormlite.dao.Dao;
 import com.j256.ormlite.dao.RuntimeExceptionDao;
 import com.j256.ormlite.stmt.PreparedDelete;
 import com.j256.ormlite.stmt.PreparedQuery;
+import com.j256.ormlite.stmt.PreparedStmt;
 import com.j256.ormlite.stmt.PreparedUpdate;
 import com.j256.ormlite.support.ConnectionSource;
 
+import java.sql.SQLException;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -19,6 +21,11 @@ public abstract class DataTool implements DataAccessor {
 
     public static final int FULL_RECURSIVE = -1;
     public static final int NO_RECURSIVE = 0;
+    private static boolean DEBUG = false;
+
+    public static final void enableDebug(boolean enable) {
+        DEBUG = enable;
+    }
 
     protected OrmLiteSqliteOpenHelper ormHelper;
 
@@ -97,6 +104,9 @@ public abstract class DataTool implements DataAccessor {
                 hook.fillGapsFromDatabase(RecursiveDataTool.wrap(this, recursionLevel), item, getCurrentHookOptions());
             }
         }
+        if (DEBUG) {
+            DBLogger.debug("Requested item of class " + clazz.getSimpleName() + " with id " + id + ", got: " + item);
+        }
         return item;
     }
 
@@ -125,6 +135,12 @@ public abstract class DataTool implements DataAccessor {
         PreparedQuery<T> query = finder.getQuery(ormHelper, null);
         T retVal = ormHelper.getRuntimeExceptionDao(clazz).queryForFirst(query);
 
+        if (DEBUG) {
+            String statement = getStatementNoThrow(query);
+            DBLogger.debug("[findItem]: " + statement);
+            DBLogger.debug("[findItem]: Got: " + retVal);
+        }
+
         if (recursionLevel != NO_RECURSIVE && null != retVal) {
             DBHook<T> hook = (DBHook<T>) getHook(retVal.getClass());
             if (null != hook) {
@@ -132,6 +148,15 @@ public abstract class DataTool implements DataAccessor {
             }
         }
         return retVal;
+    }
+
+    private <T> String getStatementNoThrow(PreparedStmt<T> query) {
+        try {
+            return query.getStatement();
+        } catch (SQLException e) {
+            DBLogger.error("Error getting statement", e);
+            return "";
+        }
     }
 
     @Override
@@ -143,6 +168,11 @@ public abstract class DataTool implements DataAccessor {
         Class<T> clazz = finder.getReturnType();
         PreparedQuery<T> query = finder.getQuery(ormHelper, ordering);
         List<T> items = ormHelper.getRuntimeExceptionDao(clazz).query(query);
+
+        if (DEBUG) {
+            DBLogger.debug("[findMany]: " + getStatementNoThrow(query));
+            DBLogger.debug("[findMany]: Got: " + items);
+        }
 
         if (recursionLevel != NO_RECURSIVE && null != items) {
             DBHook<T> hook = getHook(clazz);
@@ -182,7 +212,11 @@ public abstract class DataTool implements DataAccessor {
         Class<T> clazz = deleter.getItemType();
         PreparedDelete<T> delete = deleter.getDelete(ormHelper);
         RuntimeExceptionDao<T, ?> dao = ormHelper.getRuntimeExceptionDao(clazz);
-        dao.delete(delete);
+        int numDeleted = dao.delete(delete);
+        if (DEBUG) {
+            DBLogger.debug("[deleteItems]: " + getStatementNoThrow(delete));
+            DBLogger.debug("[deleteItems]: deletedCount = " + numDeleted);
+        }
     }
 
     public DataTool withHookOptions(Object hookOptions) {

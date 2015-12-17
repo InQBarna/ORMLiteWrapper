@@ -9,6 +9,10 @@ import java.util.List;
  * Created by David García <david.garcia@inqbarna.com> on 27/1/15.
  */
 public interface DataAccessor {
+
+    <T, ID> T getById(Class<T> clazz, ID id);
+    <T, ID> ID getObjectID(T item);
+
     <T> T findItem(DataTool.Finder<T> finder);
 
     <T> List<T> findMany(DataTool.Finder<T> finder, List<DataTool.OrderInstrucction> ordering);
@@ -19,12 +23,16 @@ public interface DataAccessor {
 
     <T> Dao.CreateOrUpdateStatus createOrUpdate(T item);
 
+    <T> T createIfNotExists(T item);
+
     <T> void createOrUpdateMany(Class<T> clazz, Collection<T> items);
 
     /** For now refresh or refresh All are fully recursive by default. */
     <T> void refreshData(T item);
 
     <T> void refreshAll(Collection<T> items);
+
+    <T> boolean exists(T item);
 
     Transaction beginTransaction();
 

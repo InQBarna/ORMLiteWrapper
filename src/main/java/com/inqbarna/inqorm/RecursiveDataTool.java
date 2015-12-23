@@ -95,6 +95,11 @@ class RecursiveDataTool implements DataAccessor {
     }
 
     @Override
+    public Yielder yielder() {
+        return wrapped.yielder();
+    }
+
+    @Override
     public Transaction beginTransaction() {
         return wrapped.beginTransaction();
     }

@@ -1,5 +1,7 @@
 package com.inqbarna.inqorm;
 
+import android.database.sqlite.SQLiteDatabase;
+
 import com.j256.ormlite.android.apptools.OrmLiteSqliteOpenHelper;
 import com.j256.ormlite.dao.Dao;
 import com.j256.ormlite.dao.RuntimeExceptionDao;
@@ -293,6 +295,24 @@ public abstract class DataTool implements DataAccessor {
                         return null;
                     }
                 });
+    }
+
+    @Override
+    public Yielder yielder() {
+        return new Yielder() {
+
+            private final SQLiteDatabase sqLiteDatabase = ormHelper.getWritableDatabase();
+
+            @Override
+            public boolean yieldTransaction(long sleepAfter) {
+                return sqLiteDatabase.yieldIfContendedSafely(sleepAfter);
+            }
+
+            @Override
+            public boolean inTransaction() {
+                return sqLiteDatabase.inTransaction();
+            }
+        };
     }
 
     public <T> void bulkUpdate(Updater<T> updater) {

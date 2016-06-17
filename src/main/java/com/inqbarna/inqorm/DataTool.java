@@ -19,9 +19,9 @@ import java.util.concurrent.Callable;
  */
 public abstract class DataTool implements DataAccessor {
 
-    public static final int FULL_RECURSIVE = -1;
-    public static final int NO_RECURSIVE = 0;
-    private static boolean DEBUG = false;
+    public static final int     FULL_RECURSIVE = -1;
+    public static final int     NO_RECURSIVE   = 0;
+    private static      boolean DEBUG          = false;
 
     public static final void enableDebug(boolean enable) {
         DEBUG = enable;
@@ -30,7 +30,7 @@ public abstract class DataTool implements DataAccessor {
     protected OrmLiteSqliteOpenHelper ormHelper;
 
     public static final class OrderInstrucction {
-        public final String fieldName;
+        public final String  fieldName;
         public final boolean ascending;
 
         private OrderInstrucction(String fieldName, boolean ascending) {
@@ -64,14 +64,13 @@ public abstract class DataTool implements DataAccessor {
     public interface DeleterWithDependency<T> extends Deleter<T> {
 
         public List<Deleter<?>> getDependentDeletes();
-
     }
 
     public interface Updater<T> {
         public PreparedUpdate<T> getUpdate(OrmLiteSqliteOpenHelper helper);
+
         public Class<T> getItemType();
     }
-
 
     public DataTool(OrmLiteSqliteOpenHelper helper) {
         this.ormHelper = helper;
@@ -88,7 +87,6 @@ public abstract class DataTool implements DataAccessor {
     DataTool() {
         // constructor needed for RecursiveDataTool
     }
-
 
     @Override
     public <T, ID> T getById(Class<T> clazz, ID id) {
@@ -236,7 +234,6 @@ public abstract class DataTool implements DataAccessor {
             hook.beforeDBWrite(RecursiveDataTool.wrap(this, recurionLevel), item, getCurrentHookOptions());
         }
 
-
         Dao.CreateOrUpdateStatus status = dao.createOrUpdate(item);
         if (recurionLevel != NO_RECURSIVE && null != hook) {
             if (status.isUpdated()) {
@@ -269,26 +266,30 @@ public abstract class DataTool implements DataAccessor {
         dao.callBatchTasks(
                 new Callable<Void>() {
                     @Override
-                    public Void call() throws Exception {
-                        for (T item : items) {
+                    public Void call() {
+                        try {
+                            for (T item : items) {
 
-                            if (recursionLevel != NO_RECURSIVE && null != hook) {
-                                hook.beforeDBWrite(RecursiveDataTool.wrap(DataTool.this, recursionLevel), item, getCurrentHookOptions());
-                            }
-
-                            Dao.CreateOrUpdateStatus status = dao.createOrUpdate(item);
-
-                            if (recursionLevel != NO_RECURSIVE && null != hook) {
-                                if (status.isUpdated()) {
-                                    hook.afterUpdated(RecursiveDataTool.wrap(DataTool.this, recursionLevel), item, getCurrentHookOptions());
-                                } else {
-                                    hook.afterCreated(RecursiveDataTool.wrap(DataTool.this, recursionLevel), item, getCurrentHookOptions());
+                                if (recursionLevel != NO_RECURSIVE && null != hook) {
+                                    hook.beforeDBWrite(RecursiveDataTool.wrap(DataTool.this, recursionLevel), item, getCurrentHookOptions());
                                 }
-                                hook.afterWriteCommon(RecursiveDataTool.wrap(DataTool.this, recursionLevel), item, getCurrentHookOptions());
+
+                                Dao.CreateOrUpdateStatus status = dao.createOrUpdate(item);
+
+                                if (recursionLevel != NO_RECURSIVE && null != hook) {
+                                    if (status.isUpdated()) {
+                                        hook.afterUpdated(RecursiveDataTool.wrap(DataTool.this, recursionLevel), item, getCurrentHookOptions());
+                                    } else {
+                                        hook.afterCreated(RecursiveDataTool.wrap(DataTool.this, recursionLevel), item, getCurrentHookOptions());
+                                    }
+                                    hook.afterWriteCommon(RecursiveDataTool.wrap(DataTool.this, recursionLevel), item, getCurrentHookOptions());
+                                }
+
+                                onItemUpdated(status.isUpdated(), item);
                             }
-
-                            onItemUpdated(status.isUpdated(), item);
-
+                        } catch (Exception e) {
+                            DBLogger.error("Error ", e);
+                            throw new RuntimeException(e);
                         }
                         return null;
                     }
@@ -308,7 +309,7 @@ public abstract class DataTool implements DataAccessor {
     }
 
     public <T> void refreshData(T item, int recursionLevel) {
-        ormHelper.getRuntimeExceptionDao((Class<T>)item.getClass()).refresh(item);
+        ormHelper.getRuntimeExceptionDao((Class<T>) item.getClass()).refresh(item);
 
         if (recursionLevel != NO_RECURSIVE) {
             DBHook<T> hook = (DBHook<T>) getHook(item.getClass());
@@ -329,7 +330,7 @@ public abstract class DataTool implements DataAccessor {
         boolean hookChecked = false;
         for (T item : items) {
             if (null == dao) {
-                dao = ormHelper.getRuntimeExceptionDao((Class<T>)item.getClass());
+                dao = ormHelper.getRuntimeExceptionDao((Class<T>) item.getClass());
             }
 
             if (recursionLevel != NO_RECURSIVE && !hookChecked) {
@@ -364,8 +365,7 @@ public abstract class DataTool implements DataAccessor {
     @Override
     public <T> void update(T item) {
 
-        RuntimeExceptionDao<T, ?> dao = ormHelper.getRuntimeExceptionDao((Class<T>)item.getClass());
-
+        RuntimeExceptionDao<T, ?> dao = ormHelper.getRuntimeExceptionDao((Class<T>) item.getClass());
 
         DBHook<T> hook = (DBHook<T>) getHook(item.getClass());
         if (null != hook) {
@@ -388,5 +388,4 @@ public abstract class DataTool implements DataAccessor {
     protected <T> DBHook<T> getHook(Class<T> clazz) {
         return null;
     }
-
 }

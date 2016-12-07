@@ -15,3 +15,15 @@
 #-keepclassmembers class fqcn.of.javascript.interface.for.webview {
 #   public *;
 #}
+
+-keep interface com.inqbarna.inqorm.DataAccessor
+-keep class com.inqbarna.inqorm.DataTool
+-dontnote com.j256.ormlite.android.DatabaseTableConfigUtil
+-keep class com.j256.ormlite.android.AndroidLog {
+    <init>(java.lang.String);
+    public <methods>;
+}
+
+-keep class com.j256.ormlite.logger.LoggerFactory$LogType {
+    *;
+}

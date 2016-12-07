@@ -37,4 +37,6 @@ public interface DataAccessor {
     Transaction beginTransaction();
 
     <T> void update(T item);
+
+    Yielder yielder();
 }

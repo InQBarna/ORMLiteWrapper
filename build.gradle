@@ -2,7 +2,6 @@ apply plugin: 'com.android.library'
 
 android {
     compileSdkVersion rootProject.ext.compileSdkVersion
-    buildToolsVersion rootProject.ext.buildToolsVersion
 
     defaultConfig {
         minSdkVersion rootProject.ext.minSdkVersion
@@ -19,6 +18,6 @@ android {
 }
 
 dependencies {
-    compile fileTree(dir: 'libs', include: ['*.jar'])
-    compile 'com.j256.ormlite:ormlite-android:4.48'
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    api 'com.j256.ormlite:ormlite-android:4.48'
 }
